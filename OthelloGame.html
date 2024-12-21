@@ -1,0 +1,265 @@
+   <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロゲーム</title>
+    <style>
+      #board {
+        display: grid;
+        grid-template: repeat(8, 50px) / repeat(8, 50px);
+        margin: 20px auto;
+        width: 400px;
+        height: 400px;
+      }
+      #board div {
+        border: 1px solid black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: green;
+      }
+      #board div:hover {
+        background-color: lightgreen;
+      }
+      #status {
+        text-align: center;
+        font-size: 1.2em;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="text-align: center;">オセロゲーム</h1>
+    <div id="control" style="text-align: center; margin-bottom: 10px;">
+      <button id="player-vs-player">対人戦</button>
+      <button id="player-vs-computer">コンピュータ対戦</button>
+    </div>
+    <div id="turn-control" style="text-align: center; margin-bottom: 10px; display: none;">
+      <button id="black-first">プレイヤー先手（黒）</button>
+      <button id="white-first">プレイヤー後手（白）</button>
+    </div>
+    <div id="board"></div>
+    <p id="status"></p>
+    <div id="end-game" style="text-align: center; display: none;">
+      <p id="winner"></p>
+      <button id="restart">もう一度遊ぶ</button>
+    </div>
+    <script>
+      // ゲーム状態を管理するための2次元配列
+      const board = Array.from({ length: 8 }, () => Array(8).fill(null));
+
+      // 初期配置
+      board[3][3] = "white";
+      board[4][4] = "white";
+      board[3][4] = "black";
+      board[4][3] = "black";
+
+      let currentPlayer = "black"; // ゲーム開始時のプレイヤー
+      let playerColor = "black"; // プレイヤーの色
+      let isVsComputer = false; // コンピュータ対戦かどうか
+
+      // ボードを描画する関数
+      function renderBoard() {
+        const boardElement = document.getElementById("board");
+        boardElement.innerHTML = "";
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 8; x++) {
+            const cell = document.createElement("div");
+            if (board[y][x]) {
+              const disc = document.createElement("div");
+              disc.style.width = "40px";
+              disc.style.height = "40px";
+              disc.style.borderRadius = "50%";
+              disc.style.backgroundColor = board[y][x];
+              cell.appendChild(disc);
+            }
+
+            cell.addEventListener("click", () => handleCellClick(x, y));
+            boardElement.appendChild(cell);
+          }
+        }
+      }
+
+      // セルをクリックしたときの処理
+      function handleCellClick(x, y) {
+        const statusElement = document.getElementById("status");
+        if (isVsComputer && currentPlayer !== playerColor) {
+          statusElement.textContent = "現在はプレイヤーの番ではありません。";
+          return;
+        }
+
+        if (!makeMove(x, y, currentPlayer)) {
+          statusElement.textContent = "そこには置けません。合法な手ではありません。";
+          return;
+        }
+
+        currentPlayer = currentPlayer === "black" ? "white" : "black";
+        renderBoard();
+
+        if (isGameOver()) {
+          endGame();
+          return;
+        }
+
+        if (isVsComputer && currentPlayer !== playerColor) {
+          statusElement.textContent = "コンピュータの番です。";
+          setTimeout(computerMove, 1000); // 1秒後にコンピュータの手を実行
+        } else {
+          statusElement.textContent = `${currentPlayer === "black" ? "黒" : "白"}の番です。`;
+        }
+      }
+
+      // コンピュータの手を実行する関数
+      function computerMove() {
+        const moves = getAllValidMoves(currentPlayer);
+        if (moves.length === 0) {
+          currentPlayer = currentPlayer === "black" ? "white" : "black";
+          document.getElementById("status").textContent = "プレイヤーの番です。コンピュータは置ける場所がありません。";
+          if (isGameOver()) endGame();
+          return;
+        }
+
+        const [x, y] = moves[Math.floor(Math.random() * moves.length)]; // ランダムな合法手を選ぶ
+        makeMove(x, y, currentPlayer);
+
+        currentPlayer = currentPlayer === "black" ? "white" : "black";
+        document.getElementById("status").textContent = "プレイヤーの番です。";
+        renderBoard();
+
+        if (isGameOver()) {
+          endGame();
+        }
+      }
+
+      // 指定した位置に駒を置く処理
+      function makeMove(x, y, color) {
+        if (board[y][x]) return false;
+
+        const flipped = getFlippableDiscs(x, y, color);
+        if (flipped.length === 0) return false;
+
+        board[y][x] = color;
+        flipped.forEach(([fx, fy]) => {
+          board[fy][fx] = color;
+        });
+        return true;
+      }
+
+      // 裏返せるディスクを取得する関数
+      function getFlippableDiscs(x, y, color) {
+        const directions = [
+          [0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]
+        ];
+        const opponent = color === "black" ? "white" : "black";
+        const flippable = [];
+
+        for (const [dx, dy] of directions) {
+          const line = [];
+          let nx = x + dx;
+          let ny = y + dy;
+          while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+            if (board[ny][nx] === opponent) {
+              line.push([nx, ny]);
+            } else if (board[ny][nx] === color) {
+              flippable.push(...line);
+              break;
+            } else {
+              break;
+            }
+            nx += dx;
+            ny += dy;
+          }
+        }
+
+        return flippable;
+      }
+
+      // 全ての合法手を取得する関数
+      function getAllValidMoves(color) {
+        const moves = [];
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 8; x++) {
+            if (board[y][x] === null && getFlippableDiscs(x, y, color).length > 0) {
+              moves.push([x, y]);
+            }
+          }
+        }
+        return moves;
+      }
+
+      // ゲーム終了の判定
+      function isGameOver() {
+        return getAllValidMoves("black").length === 0 && getAllValidMoves("white").length === 0;
+      }
+
+      // 勝敗の判定
+      function endGame() {
+        const blackCount = board.flat().filter(disc => disc === "black").length;
+        const whiteCount = board.flat().filter(disc => disc === "white").length;
+
+        const winnerText = blackCount > whiteCount ? "黒の勝ち！" : whiteCount > blackCount ? "白の勝ち！" : "引き分け！";
+        document.getElementById("winner").textContent = winnerText;
+
+        document.getElementById("status").textContent = "ゲーム終了";
+        document.getElementById("end-game").style.display = "block";
+      }
+
+      // 再スタート処理
+      document.getElementById("restart").addEventListener("click", () => {
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 8; x++) {
+            board[y][x] = null;
+          }
+        }
+
+        board[3][3] = "white";
+        board[4][4] = "white";
+        board[3][4] = "black";
+        board[4][3] = "black";
+
+        currentPlayer = "black";
+        document.getElementById("end-game").style.display = "none";
+        document.getElementById("control").style.display = "block";
+        document.getElementById("status").textContent = "対戦モードを選択してください。";
+        renderBoard();
+      });
+
+      // ゲームモード選択ボタンの処理
+      document.getElementById("player-vs-player").addEventListener("click", () => {
+        isVsComputer = false;
+        document.getElementById("control").style.display = "none";
+        document.getElementById("turn-control").style.display = "block";
+      });
+
+      document.getElementById("player-vs-computer").addEventListener("click", () => {
+        isVsComputer = true;
+        document.getElementById("control").style.display = "none";
+        document.getElementById("turn-control").style.display = "block";
+      });
+
+      // 先手・後手ボタンの処理
+      document.getElementById("black-first").addEventListener("click", () => {
+        playerColor = "black";
+        currentPlayer = "black";
+        document.getElementById("turn-control").style.display = "none";
+        document.getElementById("status").textContent = "黒の番です。";
+        renderBoard();
+      });
+
+      document.getElementById("white-first").addEventListener("click", () => {
+        playerColor = "white";
+        currentPlayer = "black";
+        document.getElementById("turn-control").style.display = "none";
+        document.getElementById("status").textContent = "黒の番です。";
+        renderBoard();
+        if (isVsComputer) setTimeout(computerMove, 1000); // コンピュータが最初の手を実行
+      });
+
+      // 初期化
+      renderBoard();
+      document.getElementById("status").textContent = "対戦モードを選択してください。";
+    </script>
+  </body>
+  </html>
+`;
